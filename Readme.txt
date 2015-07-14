@@ -14,5 +14,9 @@ ugcalv3_01.c -> The basic upgraded template of my work with updating ugcal.f to 
 not change as much as other versions as it is being used as a template. Note that this does compile but does not do its 
 job.
 
+ugcalv3_02.c -> Also known as ugcal.root, it will be using more ROOT based methods within in an attempt to make it more
+efficient and so that it may be used with ROOT instead of as a stand alone. It currently has no ROOT methods being used
+with it and will be worked on later
+
 ugcalv3_03.c -> Also known as ugcal.brent, it uses a Brent minimizer which is written into the code. It currently
 compiles but only returns 0s for all numerical energy values (Not ideal)
