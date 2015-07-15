@@ -20,9 +20,8 @@
 
 #define PI 3.1415927
 
-// Global variables that are required in multiple functions,
-// they are also constants, they also happen to be a majority of the
-// trajectory variables
+// Global variables that are required in multiple functions
+// Trajectory global variables
 const double EB = 855.511;
 const double E0 = 458.311;
 const double S0X = 100.0;
@@ -32,6 +31,9 @@ const double Rho_B = 2759.599464;
 const double R2 = -8021.0;
 const double Phi_0 74.78526;
 const double Alpha_20 = -51.16861;
+
+// Minimizer global variables
+const int Bend = -1;
 
 /********************************************************************
 *
@@ -232,6 +234,22 @@ Result.YP[1] = YP[1];
 return Result;
 }
 
+/*******************************************************************/
+
+// This is a struct that will be used for holding common variables 
+// in the main ugcalv3 function and the RayTrak function 
+
+struct RayTrak_Vars
+{
+double B1;
+double X_10;
+double Y_10;
+double SIX;
+double XScint;
+double YScint;
+int Bend;
+};
+
 /********************************************************************
 *
 * Raytrak calculates the shift in x-coordinates of a ray emerging
@@ -241,7 +259,7 @@ return Result;
 *
 ********************************************************************/
 
-double RayTrak(double Momentum, double X_10, double Y_10, double SIX, int Bend, double XScint, double YScint, double B1)
+double RayTrak(double Momentum, RayTrak_Vars raytrakVars)
 {
 
 // Variables
@@ -256,10 +274,11 @@ double E2, F2;
 double M_0 = 0.511, KZ = 0.29979613;
 
 // common parameters for the minimisation calculation
-//double B1, X_10, Y_10, SIX;
+double B1 = raytrakVars.B1, X_10 = raytrakVars.X_10;
+double Y_10 raytrakVars.Y_10, SIX = raytrakVars.SIX;
 double Phi, Rho;
-//int Bend;
-//double XScint, YScint;
+int Bend = raytrakVars.Bend;
+double XScint = raytrakVars.XScint, YScint = raytrakVars.YScint;
 
 // Our result, what this function will output
 double YShift;
@@ -350,7 +369,7 @@ return value;
 *
 ********************************************************************/
 
-double BrentMinimizer(double lower_bound, double upper_bound, double abs_err_tol, double X_10, double Y_10, double SIX, int Bend, double XScint, double YScint, double B1)
+double BrentMinimizer(double lower_bound, double upper_bound, double abs_err_tol, RayTrak_Vars raytrakVars)
 {
 // variables
 double c, d, e, m, p, q, r, u, v, w, x;
@@ -369,7 +388,7 @@ x = sa + c * (upper_bound - lower_bound);
 w = x;
 v = w;
 e = 0.0;
-fx = RayTrak(x, X_10, Y_10, SIX, Bend, XScint, YScint, B1);
+fx = RayTrak(x, raytrakVars);
 fw = fx;
 fv = fw;
 
@@ -446,7 +465,7 @@ for ( ; ; )
    {
       u = x - tol;
    }
-   fu = RayTrak(u, X_10, Y_10, SIX, Bend, XScint, YScint, B1);
+   fu = RayTrak(u, raytrakVars);
    // update a, b, v, w, x
    if (fu <= fx)
    {
@@ -654,8 +673,10 @@ double BCORR = 1.00032532;
 double BNMR;
 
 // Parameters for the minimisation calculation
-double B1, Phi, Rho, SIX, X_10, Y_10, XScint, YScint;
+double B1, SIX, X_10, Y_10, XScint, YScint;
 int Bend = -1;
+RayTrak_Vars raytrakValues;
+raytrakValues.Bend = Bend;
 
 double Momentum;
  
@@ -1010,9 +1031,11 @@ else
 }
 
 PB = MomentumCal(EB);
-B1 = BCORR * BNMR;           // Ideal magnet field requested
+B1 = BCORR * BNMR;            // Ideal magnet field requested
 BField = PB / (KZ * Rho_B);   // Standard Ideal Field
-Scaling_Factor = B1 / BField;// Scaling factor from standard setting	
+Scaling_Factor = B1 / BField; // Scaling factor from standard setting
+raytrakValues.B1 = B1;
+
 PBeam = PB * Scaling_Factor;
 
 printf("Enter TOTAL (include rest mass) ebeam energy from MAMI (MeV):\n");
@@ -1032,6 +1055,7 @@ printf("Using BCORR = %11.8lf\n", BCORR);
 ********************************************************************/
 
 SIX = S0X + LQ + SD;
+raytrakValues.SIX = SIX;
 
 /********************************************************************
 *
@@ -1049,7 +1073,9 @@ Rho_0 = P0/(KZ*B1);
 // Calculate intersection points of central ray with magnet face
 // exit face intersection (X_10, Y_10)
 X_10 = Bend * (Rho_0 - Rho_0 * cos_deg(Phi_0));
+raytrakValues.X_10 = X_10;
 Y_10 = SIX + Rho_0 * sin_deg(Phi_0);
+raytrakValues.Y_10 = Y_10;
 
 printf("(X_10, Y_10) Rho_0 = %11.5lf %11.5lf %11.5lf\n", X_10, Y_10, Rho_0);
 
@@ -1072,6 +1098,9 @@ for (I = 0; I < NDim; I++)
 {
    XScint = X[I]; // Find electron trajectory through
    YScint = Y[I]; // scintillator centre
+   raytrakValues.XScint = XScint;
+   raytrakValues.YScint = YScint;
+
    Max_Call = 10000;
    PMin = 0.06 * PBeam;
    PMax = PBeam;
@@ -1079,7 +1108,7 @@ for (I = 0; I < NDim; I++)
    Fail = 1;
    Relative_Accuracy *= PMin + Absolute_Accuracy;
 
-   PCal = BrentMinimizer(PMin, PMax, Absolute_Accuracy, X_10, Y_10, SIX, Bend, XScint, YScint, B1);
+   PCal = BrentMinimizer(PMin, PMax, Absolute_Accuracy, raytrakValues);
 
    P[I] = PCal; 		// Save in arrays the momentum and
    Angle[I] = Phi + 90.0;	// trajectory angle wrt x-axis
@@ -1088,6 +1117,9 @@ for (I = 0; I < NDim; I++)
 
    XScint = X[I] + 0.5 * Width[I] * cos_deg(Theta_FPD[I] + atan_deg(Gradient));
    YScint = Y[I] + 0.5 * Width[I] * sin_deg(Theta_FPD[I] + atan_deg(Gradient));
+   raytrakValues.XScint = XScint;
+   raytrakValues.YScint = YScint;
+
    Relative_Accuracy = 0.00001;
    Absolute_Accuracy = 0.001;
    Max_Call = 10000;
@@ -1096,7 +1128,7 @@ for (I = 0; I < NDim; I++)
    Fail = 1;
    Relative_Accuracy *= PMin + Absolute_Accuracy;
 
-   PCal = BrentMinimizer(PMin, PMax, Absolute_Accuracy, X_10, Y_10, SIX, Bend, XScint, YScint, B1);
+   PCal = BrentMinimizer(PMin, PMax, Absolute_Accuracy, raytrakValues);
 
    P1[I] = PCal;		// Save near-edge momentum in array
    Angle1[I] = Phi + 90.0;	// P1, trajectory angle wrt x-axis in
@@ -1106,6 +1138,9 @@ for (I = 0; I < NDim; I++)
 
    XScint = X[I] - 0.5 * Width[I] * cos_deg(Theta_FPD[I] + atan_deg(Gradient));
    YScint = Y[I] - 0.5 * Width[I] * sin_deg(Theta_FPD[I] + atan_deg(Gradient));
+   raytrakValues.XScint = XScint;
+   raytrakValues.YScint = YScint;
+
    Relative_Accuracy = 0.00001;
    Absolute_Accuracy = 0.001;
    Max_Call = 10000;
@@ -1114,7 +1149,7 @@ for (I = 0; I < NDim; I++)
    Relative_Accuracy *= PMin + Absolute_Accuracy;
    Fail = 1;
 
-   PCal = BrentMinimizer(PMin, PMax, Absolute_Accuracy, X_10, Y_10, SIX, Bend, XScint, YScint, B1);
+   PCal = BrentMinimizer(PMin, PMax, Absolute_Accuracy, raytrakValues);
 	
    P2[I] = PCal;		// Save far-edge momentum in array P2
    Angle2[I] = Phi + 90.0;	// Trajectory angle wrt x-axis in 
