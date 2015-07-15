@@ -29,7 +29,7 @@ const double LQ = 138.0;
 const double SD = 283.0;
 const double Rho_B = 2759.599464;
 const double R2 = -8021.0;
-const double Phi_0 74.78526;
+const double Phi_0 = 74.78526;
 const double Alpha_20 = -51.16861;
 
 // Minimizer global variables
@@ -275,7 +275,7 @@ double M_0 = 0.511, KZ = 0.29979613;
 
 // common parameters for the minimisation calculation
 double B1 = raytrakVars.B1, X_10 = raytrakVars.X_10;
-double Y_10 raytrakVars.Y_10, SIX = raytrakVars.SIX;
+double Y_10 = raytrakVars.Y_10, SIX = raytrakVars.SIX;
 double Phi, Rho;
 int Bend = raytrakVars.Bend;
 double XScint = raytrakVars.XScint, YScint = raytrakVars.YScint;
