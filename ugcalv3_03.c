@@ -20,6 +20,19 @@
 
 #define PI 3.1415927
 
+// Global variables that are required in multiple functions,
+// they are also constants, they also happen to be a majority of the
+// trajectory variables
+const double EB = 855.511;
+const double E0 = 458.311;
+const double S0X = 100.0;
+const double LQ = 138.0;
+const double SD = 283.0;
+const double Rho_B = 2759.599464;
+const double R2 = -8021.0;
+const double Phi_0 74.78526;
+const double Alpha_20 = -51.16861;
+
 /********************************************************************
 *
 * These are a collection of small functions which are here to help
@@ -244,9 +257,8 @@ double M_0 = 0.511, KZ = 0.29979613;
 
 // common parameters for the minimisation calculation
 //double B1, X_10, Y_10, SIX;
-double Phi, Rho, R2 = -8021.0;
+double Phi, Rho;
 //int Bend;
-double Phi_0 = 74.78526, Alpha_20 = -51.16861;
 //double XScint, YScint;
 
 // Our result, what this function will output
@@ -272,14 +284,14 @@ if (R2 == 0.0)
 }
 else
 {
-// Curved Face
-Option = 1;
+	// Curved Face
+	Option = 1;
 
-// (E2,F2) are coordinates of centre of exit circular face
-E2 = X_10 - Bend * R2 * sin_deg(Phi_0 - Alpha_20);
-F2 = Y_10 - R2 * cos_deg(Phi_0 - Alpha_20);
+	// (E2,F2) are coordinates of centre of exit circular face
+	E2 = X_10 - Bend * R2 * sin_deg(Phi_0 - Alpha_20);
+	F2 = Y_10 - R2 * cos_deg(Phi_0 - Alpha_20);
 
-Result =  Intersection(E2, F2, R2, Bend*Rho, SIX, Rho, Option, Flag);
+	Result =  Intersection(E2, F2, R2, Bend*Rho, SIX, Rho, Option, Flag);
 }
 if (Flag == 0)
 {
@@ -633,11 +645,6 @@ double M_0 = 0.511, KZ = 0.29979613;
 
 //==================================================================
 // Parameters for the trajectory calculation
-double EB = 855.511, E0 = 458.311, S0X = 100.0;
-double A = 5.3, LQ = 138.0, SD = 283.0;
-double RhoB = 2759.599464, R2 = -8021.0;
-double Phi_0 = 74.78526, Alpha_20 = -51.16861;
-
 double PB, P0, Rho_0;
 
 // BCORR is the Magnetic field correction constant
@@ -1004,7 +1011,7 @@ else
 
 PB = MomentumCal(EB);
 B1 = BCORR * BNMR;           // Ideal magnet field requested
-BField = PB / (KZ * RhoB);   // Standard Ideal Field
+BField = PB / (KZ * Rho_B);   // Standard Ideal Field
 Scaling_Factor = B1 / BField;// Scaling factor from standard setting	
 PBeam = PB * Scaling_Factor;
 
