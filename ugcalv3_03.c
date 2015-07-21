@@ -1114,6 +1114,10 @@ for (I = 0; I < NDim; I++)
 
    P[I] = PCal; 		// Save in arrays the momentum and
    Angle[I] = Phi + 90.0;	// trajectory angle wrt x-axis
+  
+
+ printf("\nImma print out PCal = %lf and Phi = %lf\n", PCal, Phi);
+
 
    // Find electron trajectory through NEAR edge of scintillator
 
