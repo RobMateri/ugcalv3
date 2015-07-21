@@ -2,7 +2,7 @@
  *                                                       	*
  *	Ugcalv3_01.c -- Ugcal in C-Programming              	*
  *                                                       	*
- *	Uses a Brent Minimizer, 
+ *	Uses the TMinuit Minimizer from ROOT 
  *                                                       	*
  *      - Robert Materi 2015                             	*
  *                                                       	*
@@ -19,6 +19,21 @@
 #include <iostream>
 
 #define PI 3.1415927
+
+// Global variables that are required in multiple functions
+// Trajectory global variables
+const double EB = 855.511;
+const double E0 = 458.311;
+const double S0X = 100.0;
+const double LQ = 138.0;
+const double SD = 283.0;
+const double Rho_B = 2759.599464;
+const double R2 = -8021.0;
+const double Phi_0 = 74.78526;
+const double Alpha_20 = -51.16861;
+
+// Minimizer global variables
+const int Bend = -1;
 
 /********************************************************************
 *
@@ -222,6 +237,22 @@ Result.YP[1] = YP[1];
 return Result;
 }
 
+/*******************************************************************/
+
+// This is a struct that will be used for holding common variables 
+// in the main ugcalv3 function and the RayTrak function 
+
+struct RayTrak_Vars
+{
+double B1;
+double X_10;
+double Y_10;
+double SIX;
+double XScint;
+double YScint;
+int Bend;
+};
+
 /********************************************************************
 *
 * Raytrak calculates the shift in x-coordinates of a ray emerging
@@ -249,14 +280,12 @@ double M_0 = 0.511, KZ = 0.29979613;
 // common parameters for the minimisation calculation
 double B1, X10, Y10, SIX, XScint, YScint, Phi, Rho;
 int Bend;
-double EB, E0, S0X, W0, B0, A, LQ, SD, RhoB, R1, R2, PhiB;
-double Alpha_1B, Alpha_2B, Phi_0, Alpha_20, R2B;
 
 // Our result, what this function will output
 double YShift;
 
 // So we have access to our struct
-Intersection_Point Result;
+Intersection_Point Point;
 
 // This Section Calculates Trajectories for Non-Central Rays
 //
@@ -271,18 +300,18 @@ if (R2 == 0.0)
 
         // Rad2 is slope of exit face (degrees to horizontal)
         Slope = 90.0 * (1 + Bend) - Bend * (Phi_0 - Alpha_20);
-	Result = Intersection(Bend*Rho, SIX, Rho, X10, Y10, Slope, Option, Flag);
+	Point = Intersection(Bend*Rho, SIX, Rho, X10, Y10, Slope, Option, Flag);
 }
 else
 {
-// Curved Face
-Option = 1;
+	// Curved Face
+	Option = 1;
 
-// (E2,F2) are coordinates of centre of exit circular face
-E2 = X10 - Bend * R2 * sin(Phi_0 * PI / 180 - Alpha_20 * PI / 180);
-F2 = Y10 - R2 * cos(Phi_0 * PI / 180 - Alpha_20 * PI / 180);
+	// (E2,F2) are coordinates of centre of exit circular face
+	E2 = X10 - Bend * R2 * sin_deg(Phi_0 - Alpha_20);
+	F2 = Y10 - R2 * cos_deg(Phi_0 - Alpha_20);
 
-Result =  Intersection(E2, F2, R2, Bend*Rho, SIX, Rho, Option, Flag);
+	Point =  Intersection(E2, F2, R2, Bend*Rho, SIX, Rho, Option, Flag);
 }
 if (Flag == 0)
 {
@@ -316,178 +345,11 @@ return YShift;
 }
 }
 
-/*******************************************************************/
-
-// Returns the computers precision of arithmetic R which statisfies 
-// these two equations
-// 1 < 1 + R && 1 = (1 + R/2)
-double r8_epsilon()
-{
-const double value = 2.220446049250313E-016;
-return value;
-}
-
-/********************************************************************
-*
-* The Brent Minimizer, a reliable minimizer for a 1D function. This
-* version is able to locate the local minimum within a defined 
-* interval without the need for a derivative which is ideal for
-* ugcal.
-* @param lower_bound -> the lower bound of the interval of interest
-* @param upper_bound -> the upper bound of the interval of interest
-* @param abs_err_tol -> the absolute error tolerence for the interval
-* This version of the Brent Minimizer has been made to work only
-* with the RayTrak function as the function to find the minimum of. 
-*
-********************************************************************/
-
-double BrentMinimizer(double lower_bound, double upper_bound, double abs_err_tol)
-{
-// variables
-double c, d, e, m, p, q, r, u, v, w, x;
-double eps, fu, fv, fw, fx, sa, sb, t2, tol;
-
-// c is the square of the inverse of the golden ratio
-c = 0.5 * (3.0 - sqrt(5.0));
-
-// The tolerence used to determine when the interval is sufficintly
-// small enough to be accurate
-eps = sqrt(r8_epsilon());
-
-sa = lower_bound;
-sb = upper_bound;
-x = sa + c * (upper_bound - lower_bound);
-w = x;
-v = w;
-e = 0.0;
-fx = RayTrak(x);
-fw = fx;
-fv = fw;
-
-for ( ; ; )
-{
-   m = 0.5 * (sa + sb);
-   tol = eps * abs(x) + abs_err_tol;
-   t2 = 2.0 * tol;
-   // Check stopping criterion
-   if (abs(x - m) <= t2 - 0.5 * (sb - sa))
-   {
-      break;
-   }
-   // fit a parabola
-   r = 0.0;
-   q = r;
-   p = q;
-   if (tol < abs(e))
-   {
-      r = (x - w) * (fx - fv);
-      q = (x - v) * (fx - fw);
-      p = (x - v) * q - (x - w) * r;
-      q = 2.0 * (q - r);
-      if (0.0 < q)
-      {
-	 p = -p;
-      }
-      q = abs(q);
-      r = e;
-      e = d;
-   }
-   if (abs(p) < abs(0.5 * q * r) && q * (sa - x) < p && p < q * (sb - x))
-   {
-      // Take the parabolic interpolation step
-      d = p/q;
-      u = x + d;
-      // f must not be evaluted too close to the bounds of the
-      // interval
-      if ((u - sa) < t2 || (sb - u) < t2)
-      {
-	 if (x < m)
-	 {
-	    d = tol;
-	 }
-	 else
-	 {
-	    d = -tol;
-	 }
-      }
-   }
-   // A golden-section step
-   else
-   {
-      if (x < m)
-      {
-	 e = sb - x;
-      }
-      else
-      {
-	 e = sa - x;
-      }
-      d = c * e;
-   }
-   // f must not be evaluated too close to x
-   if (tol <= abs(d))
-   {
-      u = x + d;
-   }
-   else if (0.0 < d)
-   {
-      u = x + tol;
-   }
-   else
-   {
-      u = x - tol;
-   }
-   fu = RayTrak(u);
-   // update a, b, v, w, x
-   if (fu <= fx)
-   {
-      if(u < x)
-      {
-	 sb = x;
-      }
-      else 
-      {
-         sa = x;
-      }
-      v = w;
-      fv = fw;
-      w = x;
-      fw = fx;
-      x = u;
-      fx = fu;
-   }
-   else
-   {
-      if (u < x)
-      {
-	 sa = u;
-      }
-      else
-      {
-	 sb = u;
-      }
-      if (fu <= fw || w == x)
-      {
-	 v = w;
-	 fv = fw;
-         w = u;
-         fw = fu;
-      }
-      else if (fu <= fv || v == x || v == w)
-      {
-	 v = u;
-         fv = fu;
-      }
-   }
-}
-return fx;
-}
-
 //===================================================================
 //
 // ugcalv3_01() is the ugcal function for C
 //
-//==================================================================
+//===================================================================
 
 void ugcalv3_01()
 {
@@ -637,11 +499,6 @@ double M_0 = 0.511, KZ = 0.29979613;
 
 //==================================================================
 // Parameters for the trajectory calculation
-double EB = 855.511, E0 = 458.311, S0X = 100.0;
-double A = 5.3, LQ = 138.0, SD = 283.0;
-double RhoB = 2759.599464, R2 = -8021.0;
-double Phi_0 = 74.78526, Alpha_20 = -51.16861;
-
 double PB, P0, Rho_0;
 
 // BCORR is the Magnetic field correction constant
@@ -653,6 +510,8 @@ double BNMR;
 // Parameters for the minimisation calculation
 double B1, X_10, Y_10, SIX, XScint, YScint, Phi, Rho;
 int Bend = -1;
+RayTrak_Vars raytrakValues;
+raytrakValues.Bend = Bend;
 
 double Momentum;
  
@@ -1009,7 +868,9 @@ else
 PB = MomentumCal(EB);
 B1 = BCORR * BNMR;           // Ideal magnet field requested
 BField = PB / (KZ * RhoB);   // Standard Ideal Field
-Scaling_Factor = B1 / BField;// Scaling factor from standard setting	
+Scaling_Factor = B1 / BField;// Scaling factor from standard setting
+raytrakValues.B1 = B1;
+	
 PBeam = PB * Scaling_Factor;
 
 printf("Enter TOTAL (include rest mass) ebeam energy from MAMI (MeV):\n");
@@ -1029,7 +890,7 @@ printf("Using BCORR = %11.8lf\n", BCORR);
 ********************************************************************/
 
 SIX = S0X + LQ + SD;
-
+raytrakValues.SIX = SIX;
 
 /********************************************************************
 *
@@ -1047,7 +908,9 @@ Rho_0 = P0/(KZ*B1);
 // Calculate intersection points of central ray with magnet face
 // exit face intersection (X_10, Y_10)
 X_10 = Bend * (Rho_0 - Rho_0 * cos_deg(Phi_0));
+raytrakValues.X_10 = X_10;
 Y_10 = SIX + Rho_0 * sin_deg(Phi_0);
+raytrakValues.Y_10 = Y_10;
 
 printf("(X_10, Y_10) Rho_0 = %11.5lf %11.5lf %11.5lf\n", X_10, Y_10, Rho_0);
 
@@ -1077,7 +940,7 @@ for (I = 0; I < NP; I++)
    Fail = 1;
    Relative_Accuracy *= PMin + Absolute_Accuracy;
 
-   PCal = BrentMinimizer(PMin, PMax, Absolute_Accuracy);
+   // Cernlib stuff
 
    P[I] = PCal; 		// Save in arrays the momentum and
    Angle[I] = Phi + 90.0;	// trajectory angle wrt x-axis
@@ -1094,7 +957,7 @@ for (I = 0; I < NP; I++)
    Fail = 1;
    Relative_Accuracy *= PMin + Absolute_Accuracy;
 
-   PCal = BrentMinimizer(PMin, PMax, Absolute_Accuracy);
+   // cernlib stuff
 
    P1[I] = PCal;		// Save near-edge momentum in array
    Angle1[I] = Phi + 90.0;	// P1, trajectory angle wrt x-axis in
@@ -1112,7 +975,7 @@ for (I = 0; I < NP; I++)
    Relative_Accuracy *= PMin + Absolute_Accuracy;
    Fail = 1;
 
-   PCal = BrentMinimizer(PMin, PMax, Absolute_Accuracy);
+   // cernlib
 	
    P2[I] = PCal;		// Save far-edge momentum in array P2
    Angle2[I] = Phi + 90.0;	// Trajectory angle wrt x-axis in 
@@ -1125,19 +988,23 @@ for (I = 0; I < NP; I++)
 {
    if (J == 1)
    {
-      if (I != 1)
+      if (I != 0)
       {
          if (Option < 4)
 	 {
-	    // Write stuff to file
+	    fprintf(fp,"\n\n  Goosy    Mean E_e    Bite     Mean E_g      ECL      HV     Station\n");
+            fprintf(fp,"  Chan.      (MeV)     (MeV)     (MeV)        out             Number\n");
+            fprintf(fp,"**************************************************************************************\n");
 	 }
 	 else if (Option > 3)
 	 {	
-            // Write other stuff to file
+            fprintf(fp,"\n\n   Goosy ch.     E_g_Low    E_g_High    E_g_Bite       ECL      HV     Station\n");
+            fprintf(fp,"    firing        (MeV)       (MeV)       (MeV)        out             number\n");
+            fprintf(fp,"**************************************************************************************\n");
 	 }
       }
    }
-   if (I > 1)
+   if (I > 0)
    {
       AngleI = 0.5 * (Angle[I] + Angle[I - 1]);
       ECL = (I - 1) % 16;
@@ -1167,7 +1034,7 @@ for (I = 0; I < NP; I++)
 	 // and geometries
 
 	 // Region corresponding to single output channel firing only
-         if (I == 2)
+         if (I == 1)
          {
             PhoEner1_high = Beam_Energy - EnergyCal(P2[I]);
          }
@@ -1175,7 +1042,7 @@ for (I = 0; I < NP; I++)
 	 {
             PhoEner1_high = Beam_Energy - EnergyCal((fmax(P1[I - 2], P2[I])));
          }
-         if (I == 353)
+         if (I == 352)
          {
 	    PhoEner1_low = Beam_Energy - EnergyCal(P1[I - 1]);
 	 }
@@ -1187,7 +1054,7 @@ for (I = 0; I < NP; I++)
 	 Delta_E1 = PhoEner1_high - PhoEner1_low;
 
 	 // Region corresponding to two neighbouring channels firing
-	 if (I > 2)
+	 if (I > 1)
 	 {
 	    PhoEner2_high = Beam_Energy - EnergyCal(P2[I]);
 	    PhoEner2_low = Beam_Energy - EnergyCal(P2[I - 2]);
@@ -1200,7 +1067,7 @@ for (I = 0; I < NP; I++)
             }
 	 PhoEner2_mean = 0.5 * (PhoEner2_high + PhoEner2_low);
 	 }
-	 if (I > 2)
+	 if (I > 1)
 	 {
 	    if(Delta_E2 == 0.0)
 	    {
@@ -1218,7 +1085,7 @@ for (I = 0; I < NP; I++)
       {
 	 // Region containing both single and double output channels
 	 PhoEner_high = Beam_Energy - EnergyCal(P2[I]);
-	 if (I == 353)
+	 if (I == 352)
 	 {
 	    PhoEner_low = Beam_Energy - EnergyCal(P1[I - 1]);
 	 }
@@ -1237,7 +1104,7 @@ for (I = 0; I < NP; I++)
 	 // firing) using true scintillator widths and geometries
 
 	 // Region corresponding to single output channel firing only
-	 if (I == 2)
+	 if (I == 1)
 	 {
 	    PhoEner1_high = Beam_Energy - EnergyCal(P2[I]);
 	 }
@@ -1245,7 +1112,7 @@ for (I = 0; I < NP; I++)
 	 {
 	    PhoEner1_high = Beam_Energy - EnergyCal(fmax(P1[I - 2], P2[I]));
 	 }
-	 if (I == 353)
+	 if (I == 352)
 	 {
 	    PhoEner1_low = Beam_Energy - EnergyCal(P1[I - 1]);
 	 }
@@ -1255,7 +1122,7 @@ for (I = 0; I < NP; I++)
 	 }
 	 PhoEner1_mean = 0.5 * (PhoEner1_high + PhoEner1_low);
 	 Delta_E1 = PhoEner1_high - PhoEner1_low;
-	 fprintf(fp,"%5d only%12.3f %10.3f %12.3f %11.3f %6c%2d %5c %5c%3d\n", I-1, PhoEner1_low, PhoEner1_high, PhoEner1_mean, Delta_E1, ecl[I-1], ECL, hv[I-1], sn[I-1], 2*I-1);
+	 fprintf(fp,"%5d only%12.3f %10.3f %12.3f %11.3f %6c%2d %5c %5c%3d\n", I, PhoEner1_low, PhoEner1_high, PhoEner1_mean, Delta_E1, ecl[I-1], ECL, hv[I-1], sn[I-1], 2*I+1);
       }
       else if (Option == 5)
       {
@@ -1263,7 +1130,7 @@ for (I = 0; I < NP; I++)
 	 // double scintillator overlap (1 goosy channel alone or
 	 // with neightbours firing) using true scintillator widths
 	 // and geometries
-	 if (I == 1)
+	 if (I == 0)
 	 {
 	    // Region corresponding to two neightbouring channels
 	    // firing
@@ -1276,9 +1143,9 @@ for (I = 0; I < NP; I++)
 	       // by quadratic fn bkII,p69 to correct measured
 	       // deviations see p163, linear up to goosy 163
 	       // quadratic 163-352, REVISED from p171, 18/2/08
-	       pch = I - 1.5;
+	       pch = I - 0.5;
 	       corrn = pch * pch * 7.387262E-05 - pch * 5.614872E-03 - 1.777049;
-	       if (I == 2)
+	       if (I == 1)
 	       {
 		  printf("Using phenomenological correction derived for 1557 MeV beam\n");
 		  fprintf(fp,"As field was within 1 percent of 1.89563T, used phemomenological correction derived for 1557 MeV beam\n");
@@ -1292,7 +1159,7 @@ for (I = 0; I < NP; I++)
 	       // MeV 14/2/08 jcm to correct measured deviations see
 	       // p163, linear up to goosy 163 quadratic 163-352,
 	       // REVISED from p171, 18/2/08
-	       pch = I - 1.5;
+	       pch = I - 0.5;
 	       if(pch <= 205.0)
 	       {
 		  corrn = 0.007506531 * pch - 1.774604;
@@ -1301,7 +1168,7 @@ for (I = 0; I < NP; I++)
 	       {
 		  corrn = pch * pch * 1.868485E-04 - pch * 6.894372E-02 + 6.0488;
 	       }
-	       if (I == 2)
+	       if (I == 1)
 	       {
 		  printf("Using phenomenological correction derived for 1508 MeV beam\n");
 		  fprintf(fp,"As field was within 1 percent of 1.834T, used phemomenological correction derived for 1508 MeV beam\n");
@@ -1312,9 +1179,9 @@ for (I = 0; I < NP; I++)
 	       // PHENOMONOLOGICAL CORRECTION for 1.443 Tesla, 1204
 	       // MeV 2/2/09 jcm to correct measured deviations see 
 	       // bk II p56,57 with quad fn p61
-	       pch = I - 1.5;
+	       pch = I - 0.5;
 	       corrn = -pch * pch * 1.099716E-04 + pch * 2.2467585E-02 - 0.384447;
-	       if(I == 2)
+	       if(I == 1)
 	       {
 		  printf("Using phenomenological correction derived for 1204 MeV beam\n");
 		  fprintf(fp,"As field was within 1 percent of 1.443T, used phemomenological correction derived for 1204 MeV beam\n");
@@ -1333,7 +1200,7 @@ for (I = 0; I < NP; I++)
 	       // pch changed from 1204, 1508, 1557 MeV above as DM
 	       // fits are vs goosy not the goosy - 0.5 space of
                // JCM's ROOT plots.
-	       pch = I - 1.0;
+	       pch = I;
 	       corrn = 0.00000;
 	       if (pch <= 143.0)
 	       {
