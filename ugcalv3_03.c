@@ -259,7 +259,7 @@ int Bend;
 *
 ********************************************************************/
 
-double RayTrak(double Momentum, RayTrak_Vars raytrakVars)
+double RayTrak(double Momentum, RayTrak_Vars raytrakVars, double *Phi)
 {
 
 // Variables
@@ -276,15 +276,15 @@ double M_0 = 0.511, KZ = 0.29979613;
 // common parameters for the minimisation calculation
 double B1 = raytrakVars.B1, X_10 = raytrakVars.X_10;
 double Y_10 = raytrakVars.Y_10, SIX = raytrakVars.SIX;
-double Phi, Rho;
+double Rho;
 int Bend = raytrakVars.Bend;
 double XScint = raytrakVars.XScint, YScint = raytrakVars.YScint;
 
 // Our result, what this function will output
 double YShift;
 
-// So we have access to our struct
-Intersection_Point Result;
+// So we have access to our intersection struct
+Intersection_Point Point;
 
 // This Section Calculates Trajectories for Non-Central Rays
 //
@@ -299,7 +299,7 @@ if (R2 == 0.0)
 
         // Rad2 is slope of exit face (degrees to horizontal)
         Slope = 90.0 * (1 + Bend) - Bend * (Phi_0 - Alpha_20);
-	Result = Intersection(Bend*Rho, SIX, Rho, X_10, Y_10, Slope, Option, Flag);
+	Point = Intersection(Bend*Rho, SIX, Rho, X_10, Y_10, Slope, Option, Flag);
 }
 else
 {
@@ -310,32 +310,32 @@ else
 	E2 = X_10 - Bend * R2 * sin_deg(Phi_0 - Alpha_20);
 	F2 = Y_10 - R2 * cos_deg(Phi_0 - Alpha_20);
 
-	Result =  Intersection(E2, F2, R2, Bend*Rho, SIX, Rho, Option, Flag);
+	Point =  Intersection(E2, F2, R2, Bend*Rho, SIX, Rho, Option, Flag);
 }
 if (Flag == 0)
 {
         // Calculate distance between each solution point and the
         // central ray intersection point (X10,Y10) to determine
         // the correct solution
-        TA = (Result.XP[0]-X_10) * (Result.XP[0]-X_10) + (Result.YP[0]-Y_10) * (Result.YP[0]-(Y_10));
-        TB = (Result.XP[1]-X_10) * (Result.XP[1]-X_10) + (Result.YP[1]-Y_10) * (Result.YP[1]-(Y_10));
+        TA = (Point.XP[0]-X_10) * (Point.XP[0]-X_10) + (Point.YP[0]-Y_10) * (Point.YP[0]-(Y_10));
+        TB = (Point.XP[1]-X_10) * (Point.XP[1]-X_10) + (Point.YP[1]-Y_10) * (Point.YP[1]-(Y_10));
         if(TA > TB)
         {
-                X1 = Result.XP[1];
-                Y1 = Result.YP[1];
+                X1 = Point.XP[1];
+                Y1 = Point.YP[1];
         }
         else
         {
-                X1 = Result.XP[0];
-                Y1 = Result.YP[0];
+                X1 = Point.XP[0];
+                Y1 = Point.YP[0];
         }
 
 // Calculates deflection angle Phi
-Phi = acos_deg(1.0 - Bend * X1 / Rho);
+*Phi = acos_deg(1.0 - Bend * X1 / Rho);
 
 XI = XScint;
-S1X = (XI - X1)/cos_deg(90.0 - Bend * Phi);
-YI = Y1 + S1X * sin_deg(90.0 - Phi);
+S1X = (XI - X1)/cos_deg(90.0 - Bend * *Phi);
+YI = Y1 + S1X * sin_deg(90.0 - *Phi);
 
 // Shift in y-direction is taken as square of physical shift to 
 // ensure it varies smoothly about 0
@@ -369,7 +369,7 @@ return value;
 *
 ********************************************************************/
 
-double BrentMinimizer(double lower_bound, double upper_bound, double abs_err_tol, RayTrak_Vars raytrakVars)
+double BrentMinimizer(double lower_bound, double upper_bound, double abs_err_tol, RayTrak_Vars raytrakVars, double *Phi)
 {
 // variables
 double c, d, e, m, p, q, r, u, v, w, x;
@@ -388,7 +388,7 @@ x = sa + c * (upper_bound - lower_bound);
 w = x;
 v = w;
 e = 0.0;
-fx = RayTrak(x, raytrakVars);
+fx = RayTrak(x, raytrakVars, Phi);
 fw = fx;
 fv = fw;
 
@@ -465,7 +465,7 @@ for ( ; ; )
    {
       u = x - tol;
    }
-   fu = RayTrak(u, raytrakVars);
+   fu = RayTrak(u, raytrakVars, Phi);
    // update a, b, v, w, x
    if (fu <= fx)
    {
@@ -1094,6 +1094,8 @@ fprintf(fp,"Interpolated BCORR = %11.8lf\n", BCORR);
 fprintf(fp,"(Equivalent uniform field = %9.7lf Tesla)\n", B1);
 fprintf(fp,"Option = %d\n", Option);
 
+double Phi;
+
 for (I = 0; I < NDim; I++)
 {
    XScint = X[I]; // Find electron trajectory through
@@ -1108,7 +1110,7 @@ for (I = 0; I < NDim; I++)
    Fail = 1;
    Relative_Accuracy *= PMin + Absolute_Accuracy;
 
-   PCal = BrentMinimizer(PMin, PMax, Absolute_Accuracy, raytrakValues);
+   PCal = BrentMinimizer(PMin, PMax, Absolute_Accuracy, raytrakValues, &Phi);
 
    P[I] = PCal; 		// Save in arrays the momentum and
    Angle[I] = Phi + 90.0;	// trajectory angle wrt x-axis
@@ -1128,7 +1130,7 @@ for (I = 0; I < NDim; I++)
    Fail = 1;
    Relative_Accuracy *= PMin + Absolute_Accuracy;
 
-   PCal = BrentMinimizer(PMin, PMax, Absolute_Accuracy, raytrakValues);
+   PCal = BrentMinimizer(PMin, PMax, Absolute_Accuracy, raytrakValues, &Phi);
 
    P1[I] = PCal;		// Save near-edge momentum in array
    Angle1[I] = Phi + 90.0;	// P1, trajectory angle wrt x-axis in
@@ -1149,9 +1151,9 @@ for (I = 0; I < NDim; I++)
    Relative_Accuracy *= PMin + Absolute_Accuracy;
    Fail = 1;
 
-   PCal = BrentMinimizer(PMin, PMax, Absolute_Accuracy, raytrakValues);
+   PCal = BrentMinimizer(PMin, PMax, Absolute_Accuracy, raytrakValues, &Phi);
 	
-   P2[I] = PCal;		// Save far-edge momentum in array P2
+   P2[I] = PCal;
    Angle2[I] = Phi + 90.0;	// Trajectory angle wrt x-axis in 
 				// Angle2
 }
