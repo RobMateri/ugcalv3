@@ -2,7 +2,7 @@
  *                                                       	*
  *	Ugcalv3_01.c -- Ugcal in C-Programming              	*
  *                                                       	*
- *	Uses a Brent Minimizer, 
+ *	Uses a Brent Minimizer, 				*
  *                                                       	*
  *      - Robert Materi 2015                             	*
  *                                                       	*

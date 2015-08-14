@@ -18,6 +18,15 @@
 #include <cstdlib>
 #include <iostream>
 
+// ROOT Libraries used in the Minimizer calculation
+#include "Minuit/FunctionMinimum.h"
+#include "Minuit/MnUserParameterState.h"
+#include "Minuit/MinimumPrint.h"
+#include "Minuit/MnMigrad.h"
+#include "Minuit/MnMinos.h"
+#include "Minuit/MnContours.h"
+#include "Minuit/MnPlot.h"
+
 #define PI 3.1415927
 
 // Global variables that are required in multiple functions
@@ -344,6 +353,55 @@ YShift = (YI - YScint) * (YI - YScint);
 return YShift;
 }
 }
+
+/*******************************************************************/
+
+void Minuit()
+{
+// Create a TMinuit instance
+Int_t nParameters = 2;
+TMinuit *gMinuit = new TMinuit(nParameters); 
+gMinuit->SetFCN(RayTrak);
+
+Double_t arglist[10];
+Int_t ierflg = 0;
+
+Double_t amin, edm, errdef;
+Int_t nvpar, nparx, icstat;
+
+arglist[0] = 0;
+gMinuit->mnexcm("SET PRINT", arglist, 1, ierflg);
+arglist[0] = 1;
+gMinuit->mnexcm("SET ERR", arglist, 1, ierflg);
+
+// Set Parameters
+gMinuit->mnparm(0,"x",5.0,1.0e-3,-10,10,ierflg);
+gMinuit->mnparm(1,"y",5.0,1.0e-3,-10,10,ierflg);
+
+// Minimize now
+arglist[0] = 5000;
+arglist[1] = 1.0;
+
+gMinuit->mnexcm("MIGRAD", arglist, 2, ierflg);
+//gMinuit->mnexcm("MINOS", arglist, 2, ierflg);
+//gMinuit->mnexcm("HESSE", arglist, 2, ierflg);
+
+gMinuit->mnstat(amin, edm, errdef, nvpar, nparx, icstat);
+
+// Return results
+Double_t valueX, valueY;
+Double_t errorX, errorY;
+
+gMinuit->GetParameter(0, valueX, errorX);
+gMinuit->GetParameter(1, valueY, errorY);
+
+cout << "X = " << valueX << " +/- " << errorX << endl;
+cout << "Y = " << valueY << " +/- " << errorY << endl;
+
+
+
+
+
 
 //===================================================================
 //
